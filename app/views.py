@@ -10,7 +10,7 @@ from flask import render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, current_user, login_required
 from app.forms import LoginForm
 from app.models import UserProfile
-
+from werkzeug.security import check_password_hash
 
 ###
 # Routing for your application.
@@ -30,8 +30,56 @@ def about():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('secure_page'))
     form = LoginForm()
-    if request.method == "POST":
+    if request.method == "POST" and form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+        user = UserProfile.query.filter_by(username=username).first()
+        if user is not None and check_password_hash(user.password, password):
+            remember_me = False
+
+
+            if 'remember_me' in request.form:
+                remember_me = True
+
+
+            login_user(user, remember=remember_me)
+
+            flash('Logged in successfully.', 'success')
+
+            next_page = request.args.get('next')
+
+            return redirect(next_page or url_for('home'))
+        else:
+            flash('Username or Password is incorrect.', 'danger')
+
+    flash_errors(form)
+    return render_template('login.html', form=form)
+
+
+
+@app.route('/secure-page')
+@login_required
+def secure_page():
+    return render_template('secure_page.html')
+
+
+
+        
+@app.route("/logout")
+@login_required
+def logout():
+    # Logout the user and end the session
+    logout_user()
+    flash('You have been logged out.', 'danger')
+    return redirect(url_for('home'))
+                
+                
+
+
+        
         # change this to actually validate the entire form submission
         # and not just one field
         if form.username.data:
